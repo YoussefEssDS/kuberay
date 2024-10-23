@@ -63,6 +63,15 @@ jobs:
             kubectl apply -f ./ray-operator/config/samples/ray-cluster.sample.yaml
             kubectl wait --timeout=300s --for=condition=ready  pod -l ray.io/cluster=raycluster-sample
 
+        - name: Deploy Kuberay Cluster with Topology spread constraints
+          if: inputs.plugin-test
+          run: |
+            echo Deploying Kuberay cluster with Topology spread constraints
+
+            kubectl apply -f ./ray-operator/config/samples/ray-cluster.TopoSpreadConst.yaml
+            kubectl wait --timeout=300s --for=condition=ready  pod -l ray.io/cluster=raycluster-topo-sample
+
+
         - name: Run e2e tests
           run: |
             export KUBERAY_TEST_TIMEOUT_SHORT=1m
