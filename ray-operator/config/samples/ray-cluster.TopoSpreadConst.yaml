@@ -1,0 +1,86 @@
+apiVersion: ray.io/v1
+kind: RayCluster
+metadata:
+  name: raycluster-topology-test
+  namespace: default
+spec:
+  rayVersion: '2.10.0'
+  enableInTreeAutoscaling: true
+  headGroupSpec:
+    rayStartParams: {}
+    template:
+      spec:
+        containers:
+        - name: ray-head
+          image: rayproject/ray:2.10.0
+          resources:
+            limits:
+              cpu: 1
+              memory: 2Gi
+            requests:
+              cpu: 500m
+              memory: 2Gi
+          ports:
+          - containerPort: 6379
+            name: gcs-server
+          - containerPort: 8265
+            name: dashboard
+          - containerPort: 10001
+            name: client
+        topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              ray.io/node-type: head
+  workerGroupSpecs:
+    - groupName: worker-group-1
+      replicas: 3
+      minReplicas: 1
+      maxReplicas: 5
+      rayStartParams: {}
+      template:
+        spec:
+          containers:
+            - name: ray-worker
+              image: rayproject/ray:2.10.0
+              resources:
+                limits:
+                  cpu: 1
+                  memory: 1Gi
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+          topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                ray.io/node-type: worker
+
+    - groupName: worker-group-2
+      replicas: 3
+      minReplicas: 1
+      maxReplicas: 5
+      rayStartParams: {}
+      template:
+        spec:
+          containers:
+            - name: ray-worker
+              image: rayproject/ray:2.10.0
+              resources:
+                limits:
+                  cpu: 1
+                  memory: 1Gi
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+          topologySpreadConstraints:
+          - maxSkew: 1
+            topologyKey: kubernetes.io/hostname
+            whenUnsatisfiable: DoNotSchedule
+            labelSelector:
+              matchLabels:
+                ray.io/node-type: worker
