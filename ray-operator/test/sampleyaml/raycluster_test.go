@@ -2,6 +2,7 @@ package sampleyaml
 
 import (
 	"testing"
+	"time"
 
 	"github.com/onsi/gomega"
 
@@ -90,4 +91,55 @@ func TestRayCluster(t *testing.T) {
 			test.Eventually(GetWorkerPods(test, rayCluster), TestTimeoutShort).Should(gomega.WithTransform(AllPodsRunningAndReady, gomega.BeTrue()))
 		})
 	}
+}
+
+
+func TestRayClusterTopologySC(t *testing.T) {
+	const (
+		expectedRunningPods = 3
+		expectedPendingPods = 6
+		timeout             = 300 * time.Second
+		interval            = 5 * time.Second
+		gracePeriod         = 10 * time.Second
+	)
+
+	tt := struct {
+		name string
+	}{
+		name: "ray-cluster.topology-spread-constraints.yaml", 
+	}
+
+	t.Run(tt.name, func(t *testing.T) {
+		test := With(t)
+		namespace := test.NewTestNamespace()
+		test.StreamKubeRayOperatorLogs()
+
+		// Load and apply the topology YAML
+		rayClusterFromYaml := DeserializeRayClusterSampleYAML(test, tt.name)
+		KubectlApplyYAML(test, tt.name, namespace.Name)
+
+		rayCluster := GetRayCluster(test, namespace.Name, rayClusterFromYaml.Name)
+		test.Expect(rayCluster).NotTo(gomega.BeNil())
+
+		// Wait for the RayCluster to be ready
+		test.T().Logf("Waiting for RayCluster %s/%s to be ready", namespace.Name, rayCluster.Name)
+		test.Eventually(RayCluster(test, namespace.Name, rayCluster.Name), TestTimeoutMedium).
+			Should(gomega.WithTransform(RayClusterState, gomega.Equal(rayv1.Ready)))
+
+		// Verify expected number of running pods
+		test.Eventually(func() int {
+			return GetPodCountByStatus(test, namespace.Name, rayCluster.Name, "Running")
+		}, timeout, interval).Should(gomega.Equal(expectedRunningPods), "Expected running pods did not reach target count")
+
+		// Add grace period
+		time.Sleep(gracePeriod)
+
+		// Verify expected number of pending pods
+		actualPending := GetPodCountByStatus(test, namespace.Name, rayCluster.Name, "Pending")
+		test.Expect(actualPending).To(gomega.Equal(expectedPendingPods), "Expected pending pods count mismatch")
+
+		// Clean up
+		err := KubectlDeleteRayCluster(test, rayCluster)
+		test.Expect(err).To(gomega.BeNil(), "Failed to delete RayCluster after test")
+	})
 }
