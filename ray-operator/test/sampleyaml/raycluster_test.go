@@ -104,29 +104,31 @@ func TestRayClusterTopologySC(t *testing.T) {
 		},
 	}
 
-	t.Run(tt.name, func(t *testing.T) {
-		test := With(t)
-		namespace := test.NewTestNamespace()
-		test.StreamKubeRayOperatorLogs()
-		rayClusterFromYaml := DeserializeRayClusterSampleYAML(test, tt.name)
-		KubectlApplyYAML(test, tt.name, namespace.Name)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			test := With(t)
+			namespace := test.NewTestNamespace()
+			test.StreamKubeRayOperatorLogs()
+			rayClusterFromYaml := DeserializeRayClusterSampleYAML(test, tt.name)
+			KubectlApplyYAML(test, tt.name, namespace.Name)
 
-		rayCluster := GetRayCluster(test, namespace.Name, rayClusterFromYaml.Name)
-		test.Expect(rayCluster).NotTo(gomega.BeNil())
+			rayCluster := GetRayCluster(test, namespace.Name, rayClusterFromYaml.Name)
+			test.Expect(rayCluster).NotTo(gomega.BeNil())
 
-		test.T().Logf("Waiting for RayCluster %s/%s to be ready", namespace.Name, rayCluster.Name)
-		test.Eventually(RayCluster(test, namespace.Name, rayCluster.Name), TestTimeoutMedium).
-			Should(gomega.WithTransform(RayClusterState, gomega.Equal(rayv1.Ready)))
+			test.T().Logf("Waiting for RayCluster %s/%s to be ready", namespace.Name, rayCluster.Name)
+			test.Eventually(RayCluster(test, namespace.Name, rayCluster.Name), TestTimeoutMedium).
+				Should(gomega.WithTransform(RayClusterState, gomega.Equal(rayv1.Ready)))
 
-		// Check for 3 running pods as per the topology constraints
-		test.Eventually(GetWorkerPods(test, rayCluster), TestTimeoutShort).Should(gomega.WithTransform(AllPodsRunningAndReady, gomega.BeTrue()))
-		runningPods := GetWorkerPods(test, rayCluster)
-		test.Expect(len(runningPods)).To(gomega.Equal(3))
+			// Check for 3 running pods as per the topology constraints
+			test.Eventually(GetWorkerPods(test, rayCluster), TestTimeoutShort).Should(gomega.WithTransform(AllPodsRunningAndReady, gomega.BeTrue()))
+			runningPods := GetWorkerPods(test, rayCluster)
+			test.Expect(len(runningPods)).To(gomega.Equal(3))
 
-		// Consistently check that there are 6 pending pods due to topology constraints
-		test.Consistently(GetWorkerPods(test, rayCluster), TestTimeoutShort, time.Second).
-			Should(gomega.WithTransform(AllPodsPending, gomega.Equal(6)))
-	})
+			// Consistently check that there are 6 pending pods due to topology constraints
+			test.Consistently(GetWorkerPods(test, rayCluster), TestTimeoutShort, time.Second).
+				Should(gomega.WithTransform(AllPodsPending, gomega.Equal(6)))
+		})
+	}
 }
 
 // Helper func to count pending pods
